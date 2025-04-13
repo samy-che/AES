@@ -7,7 +7,7 @@ class Block implements Cloneable {
 		this.block = new boolean[taille];
 	}
 
-	public Block(int taille, int val) {
+	public Block(int taille, long val) {
 		this(taille);
 		for (int i = taille - 1; i > -1; i--) {
 			this.block[i] = ((val % 2) == 1);
@@ -122,38 +122,92 @@ class Block implements Cloneable {
 	}
 
 	public Block xOr(Block secondMember) {
-		// TODO
-		return null;
+		if (this.block.length != secondMember.block.length) {
+			return null;
+		}
+		boolean[] result = new boolean[this.block.length];
+		for (int i = 0; i < this.block.length; i++) {
+			result[i] = this.block[i] ^ secondMember.block[i];
+		}
+		return new Block(result);
 	}
 
 	public Block leftShift() {
-		// TODO
-		return null;
+		boolean[] result = new boolean[this.block.length];
+		for (int i = 0; i < this.block.length - 1; i++) {
+			result[i] = this.block[i + 1];
+		}
+		result[this.block.length - 1] = false;
+		return new Block(result);
 	}
 
 	public int rowValue() {
-		// TODO
-		return -1;
+		int row = 0;
+		for (int i = 0; i < 4; i++) {
+			if (this.block[i]) {
+				row += (1 << (3 - i));
+			}
+		}
+		return row;
 	}
 
 	public int columnValue() {
-		// TODO
-		return -1;
+		int col = 0;
+		for (int i = 4; i < 8; i++) {
+			if (this.block[i]) {
+				col += (1 << (7 - i));
+			}
+		}
+		return col;
 	}
 
 	public Block modularMultByX() {
-		// TODO
-		return null;
+		Block result = this.leftShift();
+		if (this.block[0]) { // MSB check (correct)
+			result = result.xOr(AESmodulo);
+		}
+		return result;
 	}
 
 	public Block modularMult(Block prod) {
-		// TODO
-		return null;
+		Block result = new Block(8);
+		Block temp = this.clone();
+		for (int i = 7; i >= 0; i--) { // Process LSB to MSB
+			if (prod.block[i]) {
+				result = result.xOr(temp);
+			}
+			temp = temp.modularMultByX(); // multiply by x
+		}
+		return result;
 	}
 
 	public Block g(SBox sbox, Block rc) {
-		// TODO
-		return null;
+		Block rotWord = new Block(32);
+
+		// ✅ Byte-wise left rotation: [A][B][C][D] -> [B][C][D][A]
+		for (int i = 0; i < 4; i++) {
+			Block byteBlock = this.portion(4, (i + 1) % 4); // rotate by 1 byte
+			for (int j = 0; j < 8; j++) {
+				rotWord.block[i * 8 + j] = byteBlock.block[j];
+			}
+		}
+
+		// ✅ SubBytes using SBox
+		Block subBytes = new Block(32);
+		for (int i = 0; i < 4; i++) {
+			Block tempByte = new Block(8);
+			for (int j = 0; j < 8; j++) {
+				tempByte.block[j] = rotWord.block[i * 8 + j];
+			}
+			Block subbed = sbox.cypher(tempByte);
+			for (int j = 0; j < 8; j++) {
+				subBytes.block[i * 8 + j] = subbed.block[j];
+			}
+		}
+
+		Block result = subBytes.xOr(rc);
+
+		return result;
 	}
 
 	public Block next() {
@@ -205,8 +259,35 @@ class Key {
 	}
 
 	public Key[] genSubKeys(SBox sbox) {
-		// TODO
-		return null;
+		Key[] subKeys = new Key[11];
+		subKeys[0] = new Key(this);
+
+		// Round constants for AES key expansion
+		Block[] rcon = new Block[10];
+		long[] rconValues = {
+				0x01000000L, 0x02000000L, 0x04000000L, 0x08000000L,
+				0x10000000L, 0x20000000L, 0x40000000L, 0x80000000L,
+				0x1B000000L, 0x36000000L
+		};
+
+		for (int i = 0; i < 10; i++) {
+			rcon[i] = new Block(32, rconValues[i]);
+		}
+
+		// Generate the remaining 10 round keys
+		for (int i = 1; i < 11; i++) {
+			subKeys[i] = new Key();
+
+			Block temp = subKeys[i - 1].bytes[3].g(sbox, rcon[i - 1]);
+
+			subKeys[i].bytes[0] = subKeys[i - 1].bytes[0].xOr(temp);
+
+			for (int j = 1; j < 4; j++) {
+				subKeys[i].bytes[j] = subKeys[i - 1].bytes[j].xOr(subKeys[i].bytes[j - 1]);
+			}
+		}
+
+		return subKeys;
 	}
 
 	public Block elmnt(int i, int j) {
@@ -270,28 +351,62 @@ class State {
 	}
 
 	public State substitute(SBox sbox) {
-		// TODO
-		return null;
+		State result = new State();
+		for (int i = 0; i < 4; i++) {
+			for (int j = 0; j < 4; j++) {
+				result.bytes[i][j] = sbox.cypher(this.bytes[i][j]);
+			}
+		}
+		return result;
 	}
 
 	public State shift() {
-		// TODO
-		return null;
+		State result = new State();
+		for (int i = 0; i < 4; i++) {
+			for (int j = 0; j < 4; j++) {
+				result.bytes[i][j] = this.bytes[i][(j + i) % 4];
+			}
+		}
+		return result;
 	}
 
 	public State shiftInv() {
-		// TODO
-		return null;
+		State result = new State();
+		for (int i = 0; i < 4; i++) {
+			for (int j = 0; j < 4; j++) {
+				result.bytes[i][j] = this.bytes[i][(j - i + 4) % 4];
+			}
+		}
+		return result;
 	}
 
-	public State mult(State prod) {
-		// TODO
-		return null;
+	public State mult(State mixMatrix) {
+		State result = new State();
+		for (int col = 0; col < 4; col++) {
+			for (int row = 0; row < 4; row++) {
+				Block sum = new Block(8);
+				for (int k = 0; k < 4; k++) {
+					Block a = mixMatrix.bytes[row][k];
+					Block b = this.bytes[k][col];
+					Block multResult = a.modularMult(b);
+
+					sum = sum.xOr(multResult);
+				}
+				result.bytes[row][col] = sum;
+
+			}
+		}
+		return result;
 	}
 
 	public State xOr(Key key) {
-		// TODO
-		return null;
+		State result = new State();
+		for (int i = 0; i < 4; i++) {
+			for (int j = 0; j < 4; j++) {
+				result.bytes[i][j] = this.bytes[i][j].xOr(key.elmnt(i, j));
+			}
+		}
+		return result;
 	}
 
 	public Block block() {
@@ -330,8 +445,16 @@ class SBox {
 	}
 
 	public Block cypher(Block toCypher) {
-		// TODO
-		return null;
+		int row = toCypher.rowValue();
+		int col = toCypher.columnValue();
+		int val = this.matrix[row][col];
+
+		Block result = new Block(8);
+		for (int i = 7; i >= 0; i--) {
+			result.block[i] = ((val & 1) == 1);
+			val >>= 1;
+		}
+		return result;
 	}
 }
 
@@ -356,13 +479,47 @@ class CBC extends Mode {
 	}
 
 	public Block[] enCypher(Block[] toEncypher) {
-		// TODO
-		return null;
+		Block[] result = new Block[toEncypher.length];
+		Block previous = IV;
+
+		for (int i = 0; i < toEncypher.length; i++) {
+			System.out.println("CBC Encryption - Block " + i);
+			System.out.println("Input Block: " + toEncypher[i].toStringH());
+			System.out.println("Previous Block (IV or Ciphertext): " + previous.toStringH());
+
+			Block xored = toEncypher[i].xOr(previous);
+			System.out.println("XOR Result: " + xored.toStringH());
+
+			result[i] = cypherAlgo.cypher(xored);
+			System.out.println("Encrypted Block: " + result[i].toStringH());
+
+			previous = result[i];
+			System.out.println("-----------------------------------");
+		}
+
+		return result;
 	}
 
 	public Block[] deCypher(Block[] toDecypher) {
-		// TODO
-		return null;
+		Block[] result = new Block[toDecypher.length];
+		Block previous = IV;
+
+		for (int i = 0; i < toDecypher.length; i++) {
+			System.out.println("CBC Decryption - Block " + i);
+			System.out.println("Input Ciphertext Block: " + toDecypher[i].toStringH());
+			System.out.println("Previous Block (IV or Ciphertext): " + previous.toStringH());
+
+			Block decrypted = cypherAlgo.deCypher(toDecypher[i]);
+			System.out.println("Decrypted Block (Before XOR): " + decrypted.toStringH());
+
+			result[i] = decrypted.xOr(previous);
+			System.out.println("Decrypted Block (After XOR): " + result[i].toStringH());
+
+			previous = toDecypher[i];
+			System.out.println("-----------------------------------");
+		}
+
+		return result;
 	}
 }
 
@@ -375,13 +532,20 @@ class OFB extends Mode {
 	}
 
 	public Block[] enCypher(Block[] toEncypher) {
-		// TODO
-		return null;
+		Block[] result = new Block[toEncypher.length];
+		Block feedback = Nonce;
+
+		for (int i = 0; i < toEncypher.length; i++) {
+			feedback = cypherAlgo.cypher(feedback);
+			result[i] = toEncypher[i].xOr(feedback);
+		}
+
+		return result;
 	}
 
 	public Block[] deCypher(Block[] toDecypher) {
-		// TODO
-		return null;
+		// OFB decryption is identical to encryption
+		return enCypher(toDecypher);
 	}
 }
 
@@ -394,13 +558,21 @@ class CTR extends Mode {
 	}
 
 	public Block[] enCypher(Block[] toEncypher) {
-		// TODO
-		return null;
+		Block[] result = new Block[toEncypher.length];
+		Block currentCounter = counter;
+
+		for (int i = 0; i < toEncypher.length; i++) {
+			Block keystream = cypherAlgo.cypher(currentCounter);
+			result[i] = toEncypher[i].xOr(keystream);
+			currentCounter = currentCounter.next();
+		}
+
+		return result;
 	}
 
 	public Block[] deCypher(Block[] toDecypher) {
-		// TODO
-		return null;
+		// CTR decryption is identical to encryption
+		return enCypher(toDecypher);
 	}
 }
 
@@ -446,17 +618,61 @@ public class AES {
 			mixInv = { { 14, 11, 13, 9 }, { 9, 14, 11, 13 }, { 13, 9, 14, 11 }, { 11, 13, 9, 14 } };
 
 	public AES(Block key) {
-		// TODO
+		// Initialize S-boxes
+		this.sbox = new SBox(s);
+		this.sboxInv = new SBox(sInv);
+
+		// Initialize mixing matrices
+		this.mixState = new State(mix);
+		this.mixStateInv = new State(mixInv);
+
+		// Generate round keys
+		Key masterKey = new Key(key);
+		this.keys = masterKey.genSubKeys(this.sbox);
 	}
 
 	public Block cypher(Block plaintext) {
-		// TODO
-		return null;
+		State state = new State(plaintext);
+
+		// Initial round key addition
+		state = state.xOr(this.keys[0]);
+
+		// Main rounds
+		for (int i = 1; i < 10; i++) {
+			state = state.substitute(this.sbox);
+			state = state.shift();
+			state = state.mult(this.mixState);
+			state = state.xOr(this.keys[i]);
+		}
+
+		// Final round (no MixColumns)
+		state = state.substitute(this.sbox);
+		state = state.shift();
+		state = state.xOr(this.keys[10]);
+
+		return state.block();
 	}
 
 	public Block deCypher(Block cyphertext) {
-		// TODO
-		return null;
+		State state = new State(cyphertext);
+
+		// Initial round key addition
+		state = state.xOr(this.keys[10]);
+		state = state.shiftInv();
+		state = state.substitute(this.sboxInv);
+
+		// Main rounds
+		for (int i = 9; i > 0; i--) {
+			state = state.xOr(this.keys[i]);
+			state = state.mult(this.mixStateInv);
+			state = state.shiftInv();
+			state = state.substitute(this.sboxInv);
+		}
+
+		// Final round key addition
+		state = state.xOr(this.keys[0]);
+
+		return state.block();
 	}
 
 	public static void main(String[] args) {
