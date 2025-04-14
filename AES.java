@@ -290,6 +290,7 @@ class Key {
 		return subKeys;
 	}
 
+	// difference : inversion entre i et j
 	public Block elmnt(int i, int j) {
 		return this.bytes[i].portion(4, j);
 	}
@@ -480,21 +481,15 @@ class CBC extends Mode {
 
 	public Block[] enCypher(Block[] toEncypher) {
 		Block[] result = new Block[toEncypher.length];
-		Block previous = IV;
+		Block previous = this.IV;
 
 		for (int i = 0; i < toEncypher.length; i++) {
-			System.out.println("CBC Encryption - Block " + i);
-			System.out.println("Input Block: " + toEncypher[i].toStringH());
-			System.out.println("Previous Block (IV or Ciphertext): " + previous.toStringH());
 
-			Block xored = toEncypher[i].xOr(previous);
-			System.out.println("XOR Result: " + xored.toStringH());
+			Block input = toEncypher[i].xOr(previous);
 
-			result[i] = cypherAlgo.cypher(xored);
-			System.out.println("Encrypted Block: " + result[i].toStringH());
+			result[i] = this.cypherAlgo.cypher(input);
 
 			previous = result[i];
-			System.out.println("-----------------------------------");
 		}
 
 		return result;
@@ -502,21 +497,12 @@ class CBC extends Mode {
 
 	public Block[] deCypher(Block[] toDecypher) {
 		Block[] result = new Block[toDecypher.length];
-		Block previous = IV;
+		Block previous = this.IV;
 
 		for (int i = 0; i < toDecypher.length; i++) {
-			System.out.println("CBC Decryption - Block " + i);
-			System.out.println("Input Ciphertext Block: " + toDecypher[i].toStringH());
-			System.out.println("Previous Block (IV or Ciphertext): " + previous.toStringH());
-
-			Block decrypted = cypherAlgo.deCypher(toDecypher[i]);
-			System.out.println("Decrypted Block (Before XOR): " + decrypted.toStringH());
-
+			Block decrypted = this.cypherAlgo.deCypher(toDecypher[i]);
 			result[i] = decrypted.xOr(previous);
-			System.out.println("Decrypted Block (After XOR): " + result[i].toStringH());
-
 			previous = toDecypher[i];
-			System.out.println("-----------------------------------");
 		}
 
 		return result;
@@ -533,11 +519,11 @@ class OFB extends Mode {
 
 	public Block[] enCypher(Block[] toEncypher) {
 		Block[] result = new Block[toEncypher.length];
-		Block feedback = Nonce;
+		Block output = this.Nonce;
 
 		for (int i = 0; i < toEncypher.length; i++) {
-			feedback = cypherAlgo.cypher(feedback);
-			result[i] = toEncypher[i].xOr(feedback);
+			output = this.cypherAlgo.cypher(output);
+			result[i] = toEncypher[i].xOr(output);
 		}
 
 		return result;
@@ -545,7 +531,7 @@ class OFB extends Mode {
 
 	public Block[] deCypher(Block[] toDecypher) {
 		// OFB decryption is identical to encryption
-		return enCypher(toDecypher);
+		return this.enCypher(toDecypher);
 	}
 }
 
@@ -559,12 +545,12 @@ class CTR extends Mode {
 
 	public Block[] enCypher(Block[] toEncypher) {
 		Block[] result = new Block[toEncypher.length];
-		Block currentCounter = counter;
+		Block counterCopy = this.counter.clone();
 
 		for (int i = 0; i < toEncypher.length; i++) {
-			Block keystream = cypherAlgo.cypher(currentCounter);
+			Block keystream = this.cypherAlgo.cypher(counterCopy);
 			result[i] = toEncypher[i].xOr(keystream);
-			currentCounter = currentCounter.next();
+			counterCopy = counterCopy.next();
 		}
 
 		return result;
@@ -572,7 +558,7 @@ class CTR extends Mode {
 
 	public Block[] deCypher(Block[] toDecypher) {
 		// CTR decryption is identical to encryption
-		return enCypher(toDecypher);
+		return this.enCypher(toDecypher);
 	}
 }
 
@@ -722,21 +708,21 @@ public class AES {
 			System.out.println("deCypherBlock 2 AES KO");
 		}
 		System.out.println("==========");
-		String poeme = "Le temps a laiss� son manteau\r\n"
+		String poeme = "Le temps a laissé son manteau\r\n"
 				+ "De vent, de froidure et de pluie,\r\n"
-				+ "Et s�est v�tu de broderie,\r\n"
+				+ "Et s’est vêtu de broderie,\r\n"
 				+ "De soleil luisant, clair et beau.\r\n"
 				+ "\r\n"
-				+ "Il n�y a b�te ni oiseau\r\n"
-				+ "Qu�en son jargon ne chante ou crie :\r\n"
-				+ "Le temps a laiss� son manteau\r\n"
+				+ "Il n’y a bête ni oiseau\r\n"
+				+ "Qu’en son jargon ne chante ou crie :\r\n"
+				+ "Le temps a laissé son manteau\r\n"
 				+ "De vent, de froidure et de pluie.\r\n"
 				+ "\r\n"
-				+ "Rivi�re, fontaine et ruisseau\r\n"
-				+ "Portent en livr�e jolie,\r\n"
-				+ "Gouttes d�argent d�orf�vrerie ;\r\n"
-				+ "Chacun s�habille de nouveau :\r\n"
-				+ "Le temps a laiss� son manteau.";
+				+ "Rivière, fontaine et ruisseau\r\n"
+				+ "Portent en livrée jolie,\r\n"
+				+ "Gouttes d’argent d’orfèvrerie ;\r\n"
+				+ "Chacun s’habille de nouveau :\r\n"
+				+ "Le temps a laissé son manteau.";
 		Block[] blocks = Block.stringToBlock(poeme, 16);
 		CBC cbc = new CBC(aes, cypherBlock);
 		Block[] blocksCypher = cbc.enCypher(blocks);
@@ -777,25 +763,25 @@ public class AES {
 		}
 		System.out.println("==========");
 		String poeme2 = "Mignonne, allons voir si la rose\r\n"
-				+ "Qui ce matin avait d�close\r\n"
+				+ "Qui ce matin avait déclôsé\r\n"
 				+ "Sa robe de pourpre au Soleil,\r\n"
-				+ "A point perdu cette vespr�e\r\n"
-				+ "Les plis de sa robe pourpr�e,\r\n"
-				+ "Et son teint au v�tre pareil.\r\n"
+				+ "A point perdu cette vesprée\r\n"
+				+ "Les plis de sa robe pourprée,\r\n"
+				+ "Et son teint au vôtre pareil.\r\n"
 				+ "\r\n"
 				+ "Las ! voyez comme en peu d'espace,\r\n"
 				+ "Mignonne, elle a dessus la place,\r\n"
-				+ "Las ! las ! ses beaut�s laiss� choir !\r\n"
-				+ "� vraiment mar�tre Nature,\r\n"
+				+ "Las ! las ! ses beautés laissé choir !\r\n"
+				+ "Ô vraiment marâtre Nature,\r\n"
 				+ "Puisqu'une telle fleur ne dure\r\n"
 				+ "Que du matin jusques au soir !\r\n"
 				+ "\r\n"
 				+ "Donc, si vous me croyez, mignonne,\r\n"
-				+ "Tandis que votre �ge fleuronne\r\n"
-				+ "En sa plus verte nouveaut�,\r\n"
+				+ "Tandis que votre âge fleuronne\r\n"
+				+ "En sa plus verte nouveauté,\r\n"
 				+ "Cueillez, cueillez votre jeunesse :\r\n"
-				+ "Comme � cette fleur, la vieillesse\r\n"
-				+ "Fera ternir votre beaut�.";
+				+ "Comme à cette fleur, la vieillesse\r\n"
+				+ "Fera ternir votre beauté.";
 		Block[] blocks2 = Block.stringToBlock(poeme2, 16);
 		OFB ofb = new OFB(aes, cypherBlock);
 		blocksCypher = ofb.enCypher(blocks2);
@@ -846,20 +832,20 @@ public class AES {
 			}
 		}
 		System.out.println("==========");
-		String poeme3 = "Demain, d�s l'aube, � l'heure o� blanchit la campagne,\r\n"
+		String poeme3 = "Demain, dès l'aube, à l'heure où blanchit la campagne,\r\n"
 				+ "Je partirai. Vois-tu, je sais que tu m'attends.\r\n"
-				+ "J'irai par la for�t, j'irai par la montagne.\r\n"
+				+ "J'irai par la forêt, j'irai par la montagne.\r\n"
 				+ "Je ne puis demeurer loin de toi plus longtemps.\r\n"
 				+ "\r\n"
-				+ "Je marcherai les yeux fix�s sur mes pens�es,\r\n"
+				+ "Je marcherai les yeux fixés sur mes pensées,\r\n"
 				+ "Sans rien voir au dehors, sans entendre aucun bruit,\r\n"
-				+ "Seul, inconnu, le dos courb�, les mains crois�es,\r\n"
+				+ "Seul, inconnu, le dos courbé, les mains croisées,\r\n"
 				+ "Triste, et le jour pour moi sera comme la nuit.\r\n"
 				+ "\r\n"
 				+ "Je ne regarderai ni l'or du soir qui tombe,\r\n"
 				+ "Ni les voiles au loin descendant vers Harfleur,\r\n"
 				+ "Et quand j'arriverai, je mettrai sur ta tombe\r\n"
-				+ "Un bouquet de houx vert et de bruy�re en fleur.";
+				+ "Un bouquet de houx vert et de bruyère en fleur.";
 		Block[] blocks3 = Block.stringToBlock(poeme3, 16);
 		CTR ctr = new CTR(aes, cypherBlock);
 		blocksCypher = ctr.enCypher(blocks3);
