@@ -404,7 +404,7 @@ class State {
 		State result = new State();
 		for (int i = 0; i < 4; i++) {
 			for (int j = 0; j < 4; j++) {
-				result.bytes[i][j] = this.bytes[i][j].xOr(key.elmnt(i, j));
+				result.bytes[i][j] = this.bytes[i][j].xOr(key.elmnt(j, i));
 			}
 		}
 		return result;
