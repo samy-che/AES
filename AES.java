@@ -7,7 +7,7 @@ class Block implements Cloneable {
 		this.block = new boolean[taille];
 	}
 
-	public Block(int taille, long val) {
+	public Block(int taille, int val) {
 		this(taille);
 		for (int i = taille - 1; i > -1; i--) {
 			this.block[i] = ((val % 2) == 1);
